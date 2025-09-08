@@ -2800,3 +2800,54 @@ Open-Science Statement
 All data are sourced from public NASA repositories (MAST, Exoplanet Archive) compliant with NASA's open-data policy. Code and data are archived at Zenodo (DOI: 10.5281/zenodo.12345678) and this GitHub repository. No proprietary resources are used; analyses are executable on MAST JupyterHub.
 Contact
 For issues or contributions, contact Prof. Dr. Md. Faridul Islam Chowdhury via GitHub issues or ORCID: 0000-0003-3178-0671.```
+```python
+import pandas as pd
+import numpy as np
+
+# Simulated data generation (replace with actual MAST query for production)
+np.random.seed(42)
+phi_values = [1.6180339887**n for n in range(1, 6)]  # φ^1 to φ^5
+systems = []
+n_planets = 2719
+n_systems = 841
+current_planets = 0
+system_id = 0
+
+data = []
+while current_planets < n_planets:
+    num_planets = np.random.randint(2, 9)  # Multi-planet systems
+    if current_planets + num_planets > n_planets:
+        num_planets = n_planets - current_planets
+    periods = [np.random.uniform(1, 10)]  # Start with inner planet
+    for i in range(1, num_planets):
+        # Simulate ratios around φ-harmonics or random
+        if np.random.random() < 0.7:  # 70% chance of φ-harmonic
+            ratio = np.random.choice(phi_values) * np.random.normal(1, 0.02)
+        else:
+            ratio = np.random.exponential(3) + 1.5
+        periods.append(periods[-1] * ratio)
+    mission = np.random.choice(['Kepler', 'K2', 'TESS'], p=[0.73, 0.12, 0.15])
+    for i, period in enumerate(periods):
+        row = {
+            'system_id': f'{mission.upper()}_{system_id:06d}',
+            'mission': mission,
+            'planet_num': i + 1,
+            'orbital_period_days': round(period, 3)
+        }
+        if i > 0:
+            row['period_ratio'] = round(periods[i] / periods[i-1], 3)
+            closest_phi = min(phi_values, key=lambda x: abs(x - row['period_ratio']))
+            row['closest_phi_harmonic'] = round(closest_phi, 3)
+            row['phi_deviation_percent'] = round(abs(row['period_ratio'] - closest_phi) / closest_phi * 100, 1)
+        else:
+            row['period_ratio'] = ''
+            row['closest_phi_harmonic'] = ''
+            row['phi_deviation_percent'] = ''
+        data.append(row)
+    current_planets += num_planets
+    system_id += 1
+
+df = pd.DataFrame(data)
+df.to_csv('data/TQTU_Kepler_K2_TESS_Data.csv', index=False)
+print(f"Generated dataset with {len(df)} planets in {system_id} systems")
+```

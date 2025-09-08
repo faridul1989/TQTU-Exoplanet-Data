@@ -2882,4 +2882,60 @@ print(f"Generated dataset with {len(df)} planets in {system_id} systems")
 - Total Ratios: 2,196 adjacent period ratios
 - Columns: system_id, mission, planet_num, orbital_period_days, period_ratio, closest_phi_harmonic, phi_deviation_percent
 - Archive: Zenodo (DOI: 10.5281/zenodo.12345678)
+``````python
+import pandas as pd
+import numpy as np
+from astroquery.mast import Observations
+
+# Load Kepler DR25 data
+# Note: Run the SQL query on MAST to download kepler_dr25.csv first
+try:
+    df_kepler = pd.read_csv('kepler_dr25.csv')
+    df_kepler_multi = df_kepler[df_kepler.groupby('kepid')['koi_tce_plnt_num'].transform('max') > 1]
+except FileNotFoundError:
+    print("Please download kepler_dr25.csv from NASA Exoplanet Archive using the provided SQL query.")
+
+# Load K2 data
+df_k2 = pd.read_csv('https://iopscience.iop.org/0004-637X/928/1/85/suppdata/apjac5f78t3_mrt.txt', delim_whitespace=True, usecols=["EPIC", "Period", "Radius", "N_planets"])
+df_k2_multi = df_k2[df_k2['N_planets'] > 1]
+
+# Load TESS data
+df_tess = pd.read_csv('https://raw.githubusercontent.com/California-Planet-Search/graded-injections/master/TOI/2023-07-26 toi-multis.csv')
+df_tess_multi = df_tess[df_tess['Multi'] == 'Y']
+
+# Compute period ratios
+def compute_ratios(df, id_col, period_col, mission):
+    data = []
+    phi_values = [1.6180339887**n for n in range(1, 6)]  # φ^1 to φ^5
+    for sys_id, group in df.groupby(id_col):
+        periods = group[period_col].sort_values().values
+        for i, period in enumerate(periods):
+            row = {
+                'system_id': f'{mission.upper()}_{sys_id:06d}',
+                'mission': mission,
+                'planet_num': i + 1,
+                'orbital_period_days': round(period, 3)
+            }
+            if i > 0:
+                row['period_ratio'] = round(periods[i] / periods[i-1], 3)
+                closest_phi = min(phi_values, key=lambda x: abs(x - row['period_ratio']))
+                row['closest_phi_harmonic'] = round(closest_phi, 3)
+                row['phi_deviation_percent'] = round(abs(row['period_ratio'] - closest_phi) / closest_phi * 100, 1)
+            else:
+                row['period_ratio'] = ''
+                row['closest_phi_harmonic'] = ''
+                row['phi_deviation_percent'] = ''
+            data.append(row)
+    return data
+
+# Process each dataset
+kepler_data = compute_ratios(df_kepler_multi, 'kepid', 'koi_period', 'Kepler')
+k2_data = compute_ratios(df_k2_multi, 'EPIC', 'Period', 'K2')
+tess_data = compute_ratios(df_tess_multi, 'TOI', 'Period', 'TESS')  # Adjust column names as needed
+
+# Combine and save
+all_data = kepler_data + k2_data + tess_data
+df = pd.DataFrame(all_data)
+df.to_csv('data/TQTU_Kepler_K2_TESS_Data.csv', index=False)
+print(f"Saved dataset with {len(df)} planets to data/TQTU_Kepler_K2_TESS_Data.csv")
 ```
